@@ -24,8 +24,6 @@ optimizer = optim.SGD(net.parameters(), lr=0.1, momentum=0.9, weight_decay=5e-4)
 
 trainloader, testloader = qa_cifar()
 
-experiment.log_graph()
-
 for epoch in trange(EPOCHS):
     experiment.log_metric("epoch", epoch)
     train(
