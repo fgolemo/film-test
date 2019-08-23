@@ -92,7 +92,7 @@ def test(net,
             total += targets.size(0)
             correct += predicted.eq(targets).sum().item()
 
-            if batch_idx in [0, 50] and comet is not None:  # twice per epoch
+            if batch_idx in [0, 50] and comet is not None and qa:  # twice per epoch
                 # get indices of bad predictions this minibatch (100 items per MB)
                 bp = (predicted.eq(targets) == 0).nonzero()
                 if len(bp) != 0:
