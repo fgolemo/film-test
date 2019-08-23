@@ -91,7 +91,7 @@ def qa_cifar():
     trainset = Cifar10QA(
         root=CIFAR_PATH, train=True, download=True, transform=transform_train)
     trainloader = torch.utils.data.DataLoader(
-        trainset, batch_size=128, shuffle=True, num_workers=2)
+        trainset, batch_size=100, shuffle=True, num_workers=2)
 
     testset = Cifar10QA(
         root=CIFAR_PATH, train=False, download=True, transform=transform_test)
