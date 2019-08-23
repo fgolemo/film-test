@@ -7,6 +7,8 @@ experiment = Experiment(
     api_key="ZfKpzyaedH6ajYSiKmvaSwyCs",
     project_name="film-test",
     workspace="fgolemo")
+experiment.add_tag("no-qa")
+experiment.add_tag("vanilla-resnet")
 
 from torch import nn, optim
 from tqdm import trange
