@@ -6,17 +6,44 @@ from torchvision.datasets import CIFAR10
 
 from film_test.data import CIFAR_PATH
 
+cifar10_norm = {
+    "mean_r": 0.4914,
+    "mean_g": 0.4822,
+    "mean_b": 0.4465,
+    "std_r": 0.2023,
+    "std_g": 0.1994,
+    "std_b": 0.2010
+}
+
 transform_train = transforms.Compose([
     transforms.RandomCrop(32, padding=4),
     transforms.RandomHorizontalFlip(),
     transforms.ToTensor(),
-    transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+    transforms.Normalize(
+        (cifar10_norm["mean_r"], cifar10_norm["mean_g"],
+         cifar10_norm["mean_b"]),
+        (cifar10_norm["std_r"], cifar10_norm["std_g"], cifar10_norm["std_b"])),
 ])
 
 transform_test = transforms.Compose([
     transforms.ToTensor(),
-    transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010)),
+    transforms.Normalize(
+        (cifar10_norm["mean_r"], cifar10_norm["mean_g"],
+         cifar10_norm["mean_b"]),
+        (cifar10_norm["std_r"], cifar10_norm["std_g"], cifar10_norm["std_b"])),
 ])
+
+denormalize = transforms.Normalize(
+    mean=[
+        -cifar10_norm["mean_r"] / cifar10_norm["std_r"],
+        -cifar10_norm["mean_g"] / cifar10_norm["std_g"],
+        -cifar10_norm["mean_b"] / cifar10_norm["std_b"]
+    ],
+    std=[
+        1 / cifar10_norm["std_r"], 1 / cifar10_norm["std_g"],
+        1 / cifar10_norm["std_b"]
+    ])
+# inv_tensor = inv_normalize(tensor)
 
 
 def vanilla_cifar():
@@ -39,7 +66,7 @@ classes = ('plane', 'car', 'bird', 'cat', 'deer', 'dog', 'frog', 'horse',
 
 QUESTION_A = "is_transportation"
 QUESTION_B = "is_not_transportation"
-
+QUESTIONS = [QUESTION_A, QUESTION_B]
 
 class Cifar10QA(CIFAR10):
 
