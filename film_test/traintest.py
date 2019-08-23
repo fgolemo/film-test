@@ -16,7 +16,7 @@ def train(net, trainloader, epoch, optimizer, criterion, qa=False, comet=None):
             inputs, targets = data
             inputs, targets = inputs.to(device), targets.to(device)
         else:
-            inputs, _, _, question_idxs, answers = data
+            inputs, _, question_idxs, answers = data
             inputs, targets, question_idxs = inputs.to(device), \
                                              answers.to(device), \
                                              question_idxs.to(device)

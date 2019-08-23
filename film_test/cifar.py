@@ -83,7 +83,8 @@ class Cifar10QA(CIFAR10):
             else:
                 answer = 1
 
-        return img, target, question, question_idx, answer
+        # return img, target, question, question_idx, answer # strings are no bueno in tensors
+        return img, target, question_idx, answer
 
 
 def qa_cifar():
@@ -91,7 +92,7 @@ def qa_cifar():
     trainset = Cifar10QA(
         root=CIFAR_PATH, train=True, download=True, transform=transform_train)
     trainloader = torch.utils.data.DataLoader(
-        trainset, batch_size=100, shuffle=True, num_workers=2)
+        trainset, batch_size=128, shuffle=True, num_workers=2)
 
     testset = Cifar10QA(
         root=CIFAR_PATH, train=False, download=True, transform=transform_test)
@@ -110,7 +111,9 @@ if __name__ == '__main__':
     img = c[0][0]
     print(img.size())
 
-    # c = Cifar10QA(root=CIFAR_PATH, train=False, download=True)
-    # print(len(c))
-    # print(c[0])
-    # print(c[5000])
+    trainloader, testloader = qa_cifar()
+
+    for idx, t in enumerate(trainloader):
+        print(idx, len(t))
+        for sub_idx, elm in enumerate(t):
+            print(f"- {sub_idx} {elm.size()}")
