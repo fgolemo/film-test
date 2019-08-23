@@ -3,15 +3,23 @@ from tqdm import tqdm
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
+
 # Training
-def train(net, trainloader, epoch, optimizer, criterion, comet=None):
+def train(net, trainloader, epoch, optimizer, criterion, qa=False, comet=None):
     print('\nEpoch: %d' % epoch)
     net.train()
     train_loss = 0
     correct = 0
     total = 0
-    for batch_idx, (inputs, targets) in enumerate(tqdm(trainloader)):
-        inputs, targets = inputs.to(device), targets.to(device)
+    for batch_idx, (data) in enumerate(tqdm(trainloader)):
+        if not qa:
+            inputs, targets = data
+            inputs, targets = inputs.to(device), targets.to(device)
+        else:
+            inputs, _, _, question_idxs, answers = data
+            inputs, targets, question_idxs = inputs.to(device), \
+                                             answers.to(device), \
+                                             question_idxs.to(device)
         optimizer.zero_grad()
         outputs = net(inputs)
         loss = criterion(outputs, targets)
@@ -34,14 +42,21 @@ def train(net, trainloader, epoch, optimizer, criterion, comet=None):
                    f'Loss: {loss} | Acc: {acc} ({correct}/{total})')
 
 
-def test(net, testloader, criterion, comet=None):
+def test(net, testloader, criterion, qa=False, comet=None):
     net.eval()
     test_loss = 0
     correct = 0
     total = 0
     with torch.no_grad():
-        for batch_idx, (inputs, targets) in enumerate(tqdm(testloader)):
-            inputs, targets = inputs.to(device), targets.to(device)
+        for batch_idx, (data) in enumerate(tqdm(testloader)):
+            if not qa:
+                inputs, targets = data
+                inputs, targets = inputs.to(device), targets.to(device)
+            else:
+                inputs, _, _, question_idxs, answers = data
+                inputs, targets, question_idxs = inputs.to(device), \
+                                                 answers.to(device), \
+                                                 question_idxs.to(device)
             outputs = net(inputs)
             loss = criterion(outputs, targets)
 
