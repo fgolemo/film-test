@@ -74,6 +74,10 @@ class BasicBlock(nn.Module):
 
     def forward(self, x):
         if self.filmed:
+            if len(x) != 3:
+                print("\n\nSOMETHING IS FUCKY\n\n")
+                for elm in x:
+                    print(elm.dtype, elm.size())
             x, gammas, betas = x
 
         identity = x
