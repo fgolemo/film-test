@@ -1,6 +1,8 @@
 from comet_ml import Experiment
 import torch
 
+from film_test.cifar import vanilla_cifar
+
 experiment = Experiment(
     api_key="ZfKpzyaedH6ajYSiKmvaSwyCs",
     project_name="film-test",
@@ -9,7 +11,6 @@ experiment = Experiment(
 from torch import nn, optim
 from tqdm import trange
 
-from film_test.cifar import trainloader, testloader
 from film_test.resnet import resnet18
 from film_test.traintest import train, test, device
 
@@ -20,6 +21,8 @@ net = net.to(device)
 
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.SGD(net.parameters(), lr=0.1, momentum=0.9, weight_decay=5e-4)
+
+trainloader, testloader = vanilla_cifar()
 
 for epoch in trange(EPOCHS):
     experiment.log_metric("epoch", epoch)
