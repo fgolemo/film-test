@@ -8,7 +8,6 @@ experiment = Experiment(
 experiment.add_tag("qa")
 experiment.add_tag("film-resnet")
 
-
 from torch import nn, optim
 from tqdm import trange
 
@@ -34,5 +33,6 @@ for epoch in trange(EPOCHS):
         optimizer,
         criterion,
         qa=True,
+        film=True,
         comet=experiment)
-    test(net, testloader, criterion, qa=True, comet=experiment)
+    test(net, testloader, criterion, qa=True, film=True, comet=experiment)
