@@ -1,6 +1,6 @@
 import torch
 from tqdm import tqdm
-
+import torch.nn.functional as F
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 
@@ -20,8 +20,10 @@ def train(net, trainloader, epoch, optimizer, criterion, qa=False, comet=None):
             inputs, targets, question_idxs = inputs.to(device), \
                                              answers.to(device), \
                                              question_idxs.to(device)
+            question_idxs = F.one_hot(question_idxs, num_classes=2).float()
+
         optimizer.zero_grad()
-        outputs = net(inputs)
+        outputs = net(inputs, question_idxs)
         loss = criterion(outputs, targets)
         loss.backward()
         optimizer.step()

@@ -25,6 +25,18 @@ def conv1x1(in_planes, out_planes, stride=1):
         in_planes, out_planes, kernel_size=1, stride=stride, bias=False)
 
 
+class FiLM(nn.Module):
+    """
+  A Feature-wise Linear Modulation Layer from
+  'FiLM: Visual Reasoning with a General Conditioning Layer'
+  """
+
+    def forward(self, x, gammas, betas):
+        gammas = gammas.unsqueeze(2).unsqueeze(3).expand_as(x)
+        betas = betas.unsqueeze(2).unsqueeze(3).expand_as(x)
+        return (gammas * x) + betas
+
+
 class BasicBlock(nn.Module):
     expansion = 1
 
@@ -36,8 +48,12 @@ class BasicBlock(nn.Module):
                  groups=1,
                  base_width=64,
                  dilation=1,
-                 norm_layer=None):
+                 norm_layer=None,
+                 film_in=None):
         super(BasicBlock, self).__init__()
+        self.filmed = False
+        if film_in is not None:
+            self.filmed = True
         if norm_layer is None:
             norm_layer = nn.BatchNorm2d
         if groups != 1 or base_width != 64:
@@ -54,16 +70,28 @@ class BasicBlock(nn.Module):
         self.bn2 = norm_layer(planes)
         self.downsample = downsample
         self.stride = stride
+        self.film = FiLM()
 
     def forward(self, x):
+        if self.filmed:
+            x, gammas, betas = x
+
         identity = x
 
         out = self.conv1(x)
-        out = self.bn1(out)
-        out = self.relu(out)
 
+        if not self.filmed:
+            out = self.bn1(out)
+        else:
+            pass  # if FiLM, we don't apply anything here
+
+        out = self.relu(out)
         out = self.conv2(out)
-        out = self.bn2(out)
+
+        if not self.filmed:
+            out = self.bn2(out)
+        else:
+            out = self.film(out, gammas, betas)
 
         if self.downsample is not None:
             identity = self.downsample(x)
@@ -84,8 +112,12 @@ class ResNet(nn.Module):
                  groups=1,
                  width_per_group=64,
                  replace_stride_with_dilation=None,
-                 norm_layer=None):
+                 norm_layer=None,
+                 film_inputs=None,
+                 film_init_gamma_one=False):
         super(ResNet, self).__init__()
+        self.film_in = film_inputs
+
         if norm_layer is None:
             norm_layer = nn.BatchNorm2d
         self._norm_layer = norm_layer
@@ -107,20 +139,27 @@ class ResNet(nn.Module):
         self.bn1 = norm_layer(self.inplanes)
         self.relu = nn.ReLU(inplace=True)
         self.maxpool = nn.MaxPool2d(kernel_size=3, stride=2, padding=1)
-        self.layer1 = self._make_layer(block, 64, layers[0])
-        self.layer2 = self._make_layer(
+
+        if self.film_in is not None:
+            assert type(self.film_in) == type(42)  # check if int
+            self.film1 = nn.Linear(self.film_in, 32)
+            self.film2 = nn.Linear(
+                32, 2 * (64 * 2 + 128 * 2 + 256 * 2 + 512 * 2))  # gamma+beta
+
+        self.layer1_a, self.layer1_b = self._make_layer(block, 64, layers[0])
+        self.layer2_a, self.layer2_b = self._make_layer(
             block,
             128,
             layers[1],
             stride=2,
             dilate=replace_stride_with_dilation[0])
-        self.layer3 = self._make_layer(
+        self.layer3_a, self.layer3_b = self._make_layer(
             block,
             256,
             layers[2],
             stride=2,
             dilate=replace_stride_with_dilation[1])
-        self.layer4 = self._make_layer(
+        self.layer4_a, self.layer4_b = self._make_layer(
             block,
             512,
             layers[3],
@@ -161,7 +200,7 @@ class ResNet(nn.Module):
         layers = []
         layers.append(
             block(self.inplanes, planes, stride, downsample, self.groups,
-                  self.base_width, previous_dilation, norm_layer))
+                  self.base_width, previous_dilation, norm_layer, self.film_in))
         self.inplanes = planes * block.expansion
         for _ in range(1, blocks):
             layers.append(
@@ -171,20 +210,86 @@ class ResNet(nn.Module):
                     groups=self.groups,
                     base_width=self.base_width,
                     dilation=self.dilation,
-                    norm_layer=norm_layer))
+                    norm_layer=norm_layer,
+                    film_in=self.film_in))
 
-        return nn.Sequential(*layers)
+        return layers
 
-    def forward(self, x):
+    def forward(self, x, film_embed=None):
+        """
+
+        :param x: image, (minibatch, 3, 32, 32)
+        :param film_embed: one-hot vector question embedding, (minibatch, 2,)
+        :return:
+        """
+        if film_embed is not None:
+            # precompute all the gammas/betas, one for each
+            film_x = self.relu(self.film1(film_embed))
+            film_x = self.film2(film_x)
+
         x = self.conv1(x)
         x = self.bn1(x)
         x = self.relu(x)
         x = self.maxpool(x)
 
-        x = self.layer1(x)
-        x = self.layer2(x)
-        x = self.layer3(x)
-        x = self.layer4(x)
+        if film_embed is not None:
+            last_idx = 0
+
+            #FIXME: This is suuuuper nasty and I hope there's a better way of doing that
+
+            x = self.layer1_a((
+                x,
+                film_x[:, last_idx:last_idx + 64],  # gammas
+                film_x[:, last_idx + 64:last_idx + 64 * 2]))  # betas
+            last_idx += 64 * 2
+            x = self.layer1_b((
+                x,
+                film_x[:, last_idx:last_idx + 64],  # gammas
+                film_x[:, last_idx + 64:last_idx + 64 * 2]))  # betas
+            last_idx += 64 * 2
+
+            x = self.layer2_a((
+                x,
+                film_x[:, last_idx:last_idx + 128],  # gammas
+                film_x[:, last_idx + 128:last_idx + 128 * 2]))  # betas
+            last_idx += 128 * 2
+            x = self.layer2_b((
+                x,
+                film_x[:, last_idx:last_idx + 128],  # gammas
+                film_x[:, last_idx + 128:last_idx + 128 * 2]))  # betas
+            last_idx += 128 * 2
+
+            x = self.layer3_a((
+                x,
+                film_x[:, last_idx:last_idx + 256],  # gammas
+                film_x[:, last_idx + 256:last_idx + 256 * 2]))  # betas
+            last_idx += 256 * 2
+            x = self.layer3_b((
+                x,
+                film_x[:, last_idx:last_idx + 256],  # gammas
+                film_x[:, last_idx + 256:last_idx + 256 * 2]))  # betas
+            last_idx += 256 * 2
+
+            x = self.layer4_a((
+                x,
+                film_x[:, last_idx:last_idx + 512],  # gammas
+                film_x[:, last_idx + 512:last_idx + 512 * 2]))  # betas
+            last_idx += 512 * 2
+            x = self.layer4_b((
+                x,
+                film_x[:, last_idx:last_idx + 512],  # gammas
+                film_x[:, last_idx + 512:last_idx + 512 * 2]))  # betas
+
+        else:
+            #FIXME: yeah, this is nasty, too
+            x = self.layer1_a(x)
+            x = self.layer1_b(x)
+            x = self.layer2_a(x)
+            x = self.layer2_b(x)
+            x = self.layer3_a(x)
+            x = self.layer3_b(x)
+            x = self.layer4_a(x)
+            x = self.layer4_b(x)
 
         x = self.avgpool(x)
         x = torch.flatten(x, 1)
@@ -205,5 +310,8 @@ def resnet18(**kwargs):
 if __name__ == '__main__':
     from torchsummary import summary
 
-    net = resnet18(num_classes=2)
-    summary(net, input_size=(3, 32, 32))
+    # net = resnet18(num_classes=2)
+    # summary(net, input_size=(3, 32, 32))
+    net = resnet18(num_classes=2, film_inputs=2)
+    # summary(net, input_size=[(3, 32, 32), (2,)]) # for some reason this doesn't work
+    abc = net.forward(torch.zeros((2, 3, 32, 32)), torch.zeros((2, 2)))
